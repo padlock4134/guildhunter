@@ -30,7 +30,11 @@ end
 local function newRecord(kind, record)
   local old = kind == "K" and GH.db.kos or GH.db.guilds
   local existing = old[record.id]
-  if existing~=record and existing and not newer(record,existing) then return false end
+  if kind=="G" and existing and type(record.members)=="table" then
+    existing.members=existing.members or {}
+    for name,at in pairs(record.members) do existing.members[name]=math.max(existing.members[name] or 0,at) end
+  end
+  if existing~=record and existing and not newer(record,existing) then GH:Refresh();return false end
   local tomb = GH.db.tombstones[record.id]
   if tomb and not newer(record,tomb) then return false end
   if kind=="G" and existing and existing.members then
@@ -50,6 +54,7 @@ function M:Write(kind, record)
   return true
 end
 function M:AddPlayer(name, guid, guild, reason, class, level, faction)
+  if not GH:InGuild() then return false end
   if not GH:Normalize(name) or GH:Normalize(name)=="" then return nil end
   local record = self:FindPlayer(guid, name) or {
     id="player:"..GH:Normalize(name), created=GH:Now(), addedBy=GH:PlayerName()
@@ -65,6 +70,7 @@ function M:AddPlayer(name, guid, guild, reason, class, level, faction)
   return record
 end
 function M:AddGuild(name, reason)
+  if not GH:InGuild() then return false end
   if not GH:Normalize(name) or GH:Normalize(name)=="" then return nil end
   local record = self:FindGuild(name) or {
     id="guild:"..GH:Normalize(name),created=GH:Now(),addedBy=GH:PlayerName(),members={}
@@ -75,6 +81,7 @@ function M:AddGuild(name, reason)
   return record
 end
 function M:Update(kind,id,reason)
+  if not GH:InGuild() then return false end
   local record=(kind=="G" and GH.db.guilds or GH.db.kos)[id]
   if record then record.reason=reason;return self:Write(kind,record) end
 end

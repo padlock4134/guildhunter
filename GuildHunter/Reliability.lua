@@ -35,6 +35,19 @@ function M:ValidRound(r)
   if not text(r.authority) or #r.thresholds<1 or #r.thresholds>20 then return false end
   local last=0
   for _,v in ipairs(r.thresholds) do if not finite(v) or v<=last or v~=math.floor(v) then return false end;last=v end
+  local accounted=r.rolloverIn
+  for _,p in pairs(r.payments) do
+    if type(p)~="table" or p.amount~=50000 then return false end
+    accounted=accounted+p.amount
+  end
+  if r.jackpot~=accounted then return false end
+  for _,entry in ipairs(r.audit) do
+    if type(entry)~="table" or not finite(entry.at) or not text(entry.action) or type(entry.details)~="string" then return false end
+  end
+  for id,c in pairs(r.review or {}) do
+    if type(c)~="table" or id~=c.id or not text(id) or not text(c.victim) or not text(c.player) or not finite(c.at)
+      or (c.name~=nil and type(c.name)~="string") then return false end
+  end
   for name,p in pairs(r.payments) do
     if not text(name) or type(p)~="table" or p.amount~=50000 then return false end
   end

@@ -88,4 +88,6 @@ local migrated=GH.Lottery:GetCurrent()
 check("legacy draw migrated",migrated.drawAt==now+5000)
 check("legacy cutoff migrated",migrated.closesAt==now+4700)
 check("legacy state migrated",migrated.status=="open")
+local big=179487720000123
+check("revision roundtrip precision",GH.Sync.Decode(GH.Sync.Encode(big))==big)
 print("PASS "..n.." repair regression assertions")
