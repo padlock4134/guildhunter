@@ -11,7 +11,7 @@ function M:InspectUnit(unit)
  local player=GH.KOS:FindPlayer(guid,name)
  local enemyGuild=GH.KOS:FindGuild(guild)
  local key=guid or name
- GH.db.seen[key]={name=name,guid=guid,guild=guild,class=class,level=UnitLevel(unit),
+ GH.db.seen[key]={name=name,guid=guid,guild=guild,class=class,level=UnitLevel(unit),faction=UnitFactionGroup(unit),
   lastSeen=GH:Now(),kos=player and true or false,guildKos=enemyGuild and true or false}
  if (player or enemyGuild) and ((not self.lastAlerts[key]) or (GH:Now()-self.lastAlerts[key]>30)) then
    local allowed=(player and GH.db.settings.kosAlerts) or (enemyGuild and GH.db.settings.guildAlerts)
