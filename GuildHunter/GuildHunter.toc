@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: GuildHunter
-## Notes: irønclad KoS intelligence and guild lottery
+## Notes: irønclad guild PvP intelligence and weekly lottery
 ## Author: irønclad
-## Version: 0.1.0
+## Version: 1.0.0
 ## SavedVariables: GuildHunterDB
 
 Core.lua
