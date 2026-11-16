@@ -1,12 +1,12 @@
 # GuildHunter — irønclad
 
-**Version:** 1.0.0 · **Game:** World of Warcraft: Forever · **Interface:** 16001
+**Version:** 1.1.0 · **Game:** World of Warcraft: Forever · **Interface:** 16001
 
 GuildHunter is an in-game addon for **irønclad**: a shared PvP kill-on-sight tracker and a weekly 5-gold lottery. No websites, external accounts, background services, or third-party addon libraries are required.
 
 ## Installation
 
-1. Extract `GuildHunter-v1.0.0.zip` so the folder is named **GuildHunter**.
+1. Download the repository and use its inner **GuildHunter** folder (the folder containing GuildHunter.toc).
 2. Put that folder inside your active Forever client AddOns directory:
    `World of Warcraft/_forever_/Interface/AddOns/GuildHunter/`
 3. If your launcher uses `_classic_beta_` instead of `_forever_`, install it under that client's `Interface/AddOns` directory.
@@ -46,7 +46,7 @@ Use `/gh lottery` > **Officer Desk** (rank index 0–1 by default).
 - **Payment confirmation:** select a pending entry or type a guild member's full name. Confirm **only after** receiving the 5g trade. Each player can buy one paid entry in that round.
 - **Schedule:** set hours until drawing and how many minutes before it to close entries. Times display in **UTC derived from server timestamps**.
 - **Milestones:** edit comma-separated thresholds before any bonus tickets are awarded. Thresholds are locked after an award.
-- **Corrections:** enter a member, the corrected kill count, and an audit reason. Awards newly met milestones once; never silently revokes an issued ticket.
+- **Corrections:** enter a member, the corrected kill count, and an audit reason. An explicit correction requires an audit reason. It awards newly met milestones and voids bonus tickets above a corrected lower total; paid tickets remain active.
 - **Draw:** close entries, wait for the scheduled draw time and click **Draw**. The addon picks three unique winning numbers from 1–10, order-independent. All tickets matching all three numbers win. Multiple winning tickets split the jackpot equally; an indivisible copper remainder rolls over.
 - **Payout:** trade gold manually, mark each prize paid, and complete the round. If no ticket wins, the full jackpot rolls into the next week. Completed drawings cannot be rerolled.
 - **History:** review rounds, results, payouts, rollover, and recent audit entries.
@@ -75,10 +75,18 @@ All monetary totals are internally tracked in **copper**; the UI displays **gold
 - Rejoiners request snapshots. Queued outbound messages and unacknowledged kill claims survive UI reloads.
 - By design, this is a social guild lottery. WoW APIs do **not** permit an addon to take 5g automatically, independently prove a user's gold trade or guarantee the client running a PvP-kill claim has not been modified. Officers must confirm money and reconcile disputes.
 
+## Ledger ownership and delivery
+
+The guild leader (rank index 0) must run GuildHunter and be online to commit lottery actions. Other officers retain the dashboard controls; their actions are queued durably and sent to the leader. This prevents concurrent officers from replacing one another's payments or drawings. A round remains bound to its original owner; changing guild leadership mid-round requires reconciliation and is deliberately blocked.
+
+All participants must update together: v1.1.0 uses a new message prefix and does not synchronize with v1.0.0. Guild records still sync among members. Ledger changes use incremental updates, with full snapshots requested after gaps. Failed sends remain queued.
+
+The Officer Desk shows one pending kill claim with character, victim and time, plus approve/reject controls. A claim is a member's report, not server-authenticated proof. Officers must establish its legitimacy before approval. Locally observed kills on the leader's client use the event verification path. Draws wait until the review queue is resolved. Exact payout amounts display gold, silver and copper.
+
 ## Tests and validation
 
 `tests/test.lua` contains the internal, **non-production** headless test harness. It stubs WoW functions and validates 62 assertions covering addon startup, SavedVariables, KoS, officer permissions, sound handling, tickets, 5/15/30/100 milestones, kill deduplication, valid numbers, payment deduplication, jackpot splits, rollover, drawing finality, serialization, stale/unauthorized sync messages and packet reassembly.
 
-To run with Lua available: `lua tests/test.lua` from inside the `GuildHunter/` folder. No simulated kills or tickets are written into the game ledger by the test harness.
+To run with Lua available: `lua tests/test.lua` and `lua tests/regression.lua` from inside the `GuildHunter/` folder. No simulated kills or tickets are written into the game ledger by the test harness.
 
 **Validation boundary:** Syntax and headless workflow checks have passed. This build **has not been executed in an actual WoW Forever client or tested between two live guild members** here. Confirm the game's changing 16001 API, restricted combat state, player surnames, guild messaging and optional sound file in game before using a jackpot involving real in-game gold.

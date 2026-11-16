@@ -44,6 +44,7 @@ function M:ValidRound(r)
   for _,entry in ipairs(r.audit) do
     if type(entry)~="table" or not finite(entry.at) or not text(entry.action) or type(entry.details)~="string" then return false end
   end
+  if r.review~=nil and type(r.review)~="table" then return false end
   for id,c in pairs(r.review or {}) do
     if type(c)~="table" or id~=c.id or not text(id) or not text(c.victim) or not text(c.player) or not finite(c.at)
       or (c.name~=nil and type(c.name)~="string") then return false end
@@ -238,6 +239,14 @@ function M:Initialize()
   local reject=CreateFrame("Button",nil,ui.officerPage,"UIPanelButtonTemplate")
   reject:SetSize(170,25);reject:SetPoint("TOPLEFT",480,-565);reject:SetText("Reject shown claim")
   reject:SetScript("OnClick",function() if ui.reviewId then L:RejectKill(ui.reviewId) end end)
+  local unresolved=ui.memberPage:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+  unresolved:SetPoint("TOPLEFT",8,-525);unresolved:SetWidth(640);unresolved:SetJustifyH("LEFT")
+  local memberRefresh=ui.RefreshMember
+  function ui:RefreshMember()
+    memberRefresh(self)
+    local log=GH.db.lottery.unresolvedKills;local last=log[#log]
+    unresolved:SetText(last and ("Unresolved kills: "..#log.." | Latest: "..date("!%H:%M:%S",last.at).." UTC | "..last.reason) or "No unresolved local kill events")
+  end
   ui.frame:SetHeight(710)
 end
 

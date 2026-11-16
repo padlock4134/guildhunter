@@ -88,6 +88,12 @@ local migrated=GH.Lottery:GetCurrent()
 check("legacy draw migrated",migrated.drawAt==now+5000)
 check("legacy cutoff migrated",migrated.closesAt==now+4700)
 check("legacy state migrated",migrated.status=="open")
+GH.db.kos={one={id="one",name="Same Enemy",revision=3,updatedBy="A"},two={id="two",name="Same Enemy",revision=4,updatedBy="B"}}
+GH.KOS:Initialize()
+local size=0;for _ in pairs(GH.db.kos) do size=size+1 end
+check("legacy duplicate entities coalesce",size==1 and GH.db.kos["player:same enemy"].revision==4)
+GH.KOS:Accept("D",{id="one",revision=5,updatedBy="A"})
+check("legacy tombstone resolves migrated alias",next(GH.db.kos)==nil)
 local big=179487720000123
 check("revision roundtrip precision",GH.Sync.Decode(GH.Sync.Encode(big))==big)
 print("PASS "..n.." repair regression assertions")

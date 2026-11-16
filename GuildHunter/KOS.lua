@@ -1,7 +1,24 @@
 local GH = GuildHunter
 local M = {}
 GH:RegisterModule("KOS", M)
-function M:Initialize() end
+function M:Initialize()
+  for _,pair in ipairs({{"kos","player:"},{"guilds","guild:"}}) do
+    local merged={}
+    for id,r in pairs(GH.db[pair[1]]) do
+      if type(r)=="table" and type(r.name)=="string" then
+        local key=pair[2]..GH:Normalize(r.name)
+        r.legacyIds=r.legacyIds or {};r.legacyIds[id]=true
+        local old=merged[key]
+        if not old or (r.revision or 0)>(old.revision or 0) or
+          (r.revision==old.revision and (r.updatedBy or "")>(old.updatedBy or "")) then
+          if old then for alias in pairs(old.legacyIds) do r.legacyIds[alias]=true end end
+          r.id=key;merged[key]=r
+        else for alias in pairs(r.legacyIds) do old.legacyIds[alias]=true end end
+      end
+    end
+    GH.db[pair[1]]=merged
+  end
+end
 function M:FindPlayer(guid, name)
   if guid then
     for _,record in pairs(GH.db.kos) do
@@ -36,6 +53,10 @@ local function newRecord(kind, record)
   end
   if existing~=record and existing and not newer(record,existing) then GH:Refresh();return false end
   local tomb = GH.db.tombstones[record.id]
+  for alias in pairs(record.legacyIds or {}) do
+    local candidate=GH.db.tombstones[alias]
+    if candidate and (not tomb or newer(candidate,tomb)) then tomb=candidate end
+  end
   if tomb and not newer(record,tomb) then return false end
   if kind=="G" and existing and existing.members then
     record.members=record.members or {}
@@ -102,10 +123,16 @@ function M:Accept(kind,record,sender)
   if kind=="D" then
     local old=GH.db.tombstones[record.id]
     local live=GH.db.kos[record.id] or GH.db.guilds[record.id]
+    if not live then
+      for _,records in ipairs({GH.db.kos,GH.db.guilds}) do
+        for _,r in pairs(records) do if r.legacyIds and r.legacyIds[record.id] then live=r;break end end
+      end
+    end
     if newer(record,old) and (not live or newer(record,live)) then
       GH.db.tombstones[record.id]=record
       GH.db.kos[record.id]=nil
       GH.db.guilds[record.id]=nil
+      if live then GH.db.kos[live.id]=nil;GH.db.guilds[live.id]=nil;GH.db.tombstones[live.id]=record end
       GH:Refresh()
     end
     return true
@@ -114,6 +141,10 @@ function M:Accept(kind,record,sender)
   if type(record.name)~="string" or #record.name>120 or record.name=="" then return false end
   for _,key in ipairs({"reason","guild","class","faction","guid","addedBy","updatedBy"}) do
     if record[key]~=nil and (type(record[key])~="string" or #record[key]>512) then return false end
+  end
+  if record.legacyIds~=nil then
+    if type(record.legacyIds)~="table" then return false end
+    for key,value in pairs(record.legacyIds) do if type(key)~="string" or value~=true then return false end end
   end
   if record.level~=nil and type(record.level)~="number" then return false end
   if record.members~=nil then

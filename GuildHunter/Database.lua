@@ -27,7 +27,7 @@ function M:Initialize()
                point = "CENTER", locked = false, minimized = false},
     windows = {mainX=0,mainY=0,lotteryX=0,lotteryY=0},
     lottery = {rounds = {}, currentId = nil, audit = {}, entryRequests = {},
-               pendingKills = {}, unresolvedKills = {}, paidReceiptCount = 0},
+               pendingKills = {}, unresolvedKills = {}},
     audioPlayed = {}, outbox = {}, officerRankMax = 1,
     counter = 0, idCounter = 0
   })

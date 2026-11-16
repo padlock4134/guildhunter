@@ -1,5 +1,5 @@
 local GH=GuildHunter
-local M={rows={},offset=0}
+local M={rows={}}
 GH:RegisterModule("Tracker",M)
 local function btn(parent,caption,width)
   local b=CreateFrame("Button",nil,parent,"UIPanelButtonTemplate")
