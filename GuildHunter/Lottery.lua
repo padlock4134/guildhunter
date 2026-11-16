@@ -370,6 +370,9 @@ function M:ReceiveRound(p,sender)
       GH.Audio:TicketCreated(ticket)
     end
   end
+  for _,field in ipairs({"review","rejected"}) do
+    for id in pairs(incoming[field] or {}) do db.pendingKills[id]=nil end
+  end
   if incoming.killClaims then
     for id in pairs(incoming.killClaims) do db.pendingKills[id]=nil end
   end

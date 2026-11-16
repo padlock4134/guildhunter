@@ -10,7 +10,7 @@ local function encode(v,depth,stack)
   if kind=="boolean" then return v and "b1" or "b0" end
   if kind=="number" then
     if v~=v or v==math.huge or v==-math.huge then error("invalid number") end
-    return "n"..tostring(v)..";"
+    return "n"..string.format("%.17g",v)..";"
   end
   if kind=="string" then return "s"..#v..":"..v end
   if kind~="table" or stack[v] then error("unsupported or cyclic data") end

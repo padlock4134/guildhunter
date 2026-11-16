@@ -59,7 +59,6 @@ function M:Queue(payload)
   GH:Print("Action queued for the guild leader; confirmation appears when processed.")
   return true
 end
-local originalTouch=L.Touch
 function L:Touch(r,event,details,newTicket)
   self:Log(r,event,details)
   self.dirty=true
@@ -126,10 +125,10 @@ function L:ReceiveRequest(p,sender)
   if p.type=="KILL" then
     local r=self:GetCurrent();local c=p.claim
     if not r or r.id~=p.roundId or type(c)~="table" or not text(c.id) or not text(c.victim)
-      or not finite(c.at) or c.at<r.created or c.at>=r.closesAt or c.at>GH:Now()+10
+      or (c.name~=nil and type(c.name)~="string") or not finite(c.at) or c.at<r.created or c.at>=r.closesAt or c.at>GH:Now()+10
       or GH:Normalize(c.player)~=GH:Normalize(sender) or not r.payments[sender]
       or (r.status~="open" and r.status~="closed") or GH:Now()>=r.drawAt then return end
-    c=copy(c);c.player=sender
+    c=copy(c);c.player=sender;c.roundId=r.id
     r.review=r.review or {}
     if not r.review[c.id] and not r.killClaims[c.id] and not (r.rejected and r.rejected[c.id]) then
       r.review[c.id]=c;self:Touch(r,"claim_pending_review",sender.." "..c.victim)
@@ -164,6 +163,7 @@ function L:ReceiveRound(p,sender)
   if not GH:IsLedgerOwner(sender) or not M:ValidRound(p.round) or GH:Normalize(p.round.authority)~=GH:Normalize(sender) then return end
   local old=GH.db.lottery.rounds[p.round.id]
   if old then
+    if old.authority and GH:Normalize(old.authority)~=GH:Normalize(p.round.authority) then return end
     local stages={open=1,closed=2,drawn=3,complete=4}
     if stages[p.round.status]<stages[old.status] or (old.winning and old.winning~=p.round.winning) then return end
   end
