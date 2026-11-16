@@ -31,7 +31,7 @@ local function encode(v,depth,stack)
   return table.concat(out)
 end
 local function decode(raw)
-  if type(raw)~="string" or #raw>110000 then error("payload too large") end
+  if type(raw)~="string" or #raw>1351680 then error("payload too large") end
   local pos=1
   local function read(depth)
     if depth>14 then error("data too deep") end
@@ -46,7 +46,7 @@ local function decode(raw)
       local e=raw:find(";",pos,true)
       if not e or e-pos>25 then error("bad number") end
       local n=tonumber(raw:sub(pos,e-1))
-      if not n then error("bad number") end
+      if not n or n~=n or n==math.huge or n==-math.huge then error("bad number") end
       pos=e+1;return n
     end
     if tag=="s" or tag=="t" then
@@ -95,7 +95,8 @@ function M:Publish(payload)
   if not ok then GH:Print("Sync encoding: "..tostring(serialized));return false end
   local blockSize=165
   local total=math.ceil(#serialized/blockSize)
-  if total==0 or total>600 then GH:Print("Sync record exceeds size limit") return false end
+  if total==0 or total>8192 then GH:Print("Sync record exceeds size limit") return false end
+  if #GH.db.outbox+total>16384 then GH:Print("Sync queue full; waiting to retry");return false end
   self.counter=self.counter+1
   local id=tostring(GH:Now()).."_"..tostring(self.counter)
   for i=1,total do
@@ -110,7 +111,8 @@ function M:Flush()
   local send=C_ChatInfo and C_ChatInfo.SendAddonMessage or SendAddonMessage
   if not send then return end
   local ok,result=pcall(send,GH.prefix,GH.db.outbox[1],"GUILD")
-  if ok and result~=false then table.remove(GH.db.outbox,1) end
+  local success=Enum and Enum.SendAddonMessageResult and Enum.SendAddonMessageResult.Success or 0
+  if ok and (result==success or result==true) then table.remove(GH.db.outbox,1) end
 end
 function M:Request()
   if not GH:InGuild() then GH:Print("Guild sync requires irønclad membership") return end
@@ -120,7 +122,7 @@ function M:Snapshot()
   for _,r in pairs(GH.db.kos) do self:Publish({type="RECORD",kind="K",record=r}) end
   for _,r in pairs(GH.db.guilds) do self:Publish({type="RECORD",kind="G",record=r}) end
   for _,r in pairs(GH.db.tombstones) do self:Publish({type="RECORD",kind="D",record=r}) end
-  if GH:IsOfficer() then GH.Lottery:BroadcastAll(false) end
+  if GH:IsLedgerOwner() then GH.Lottery:BroadcastAll(false) end
 end
 function M:HandlePayload(p,sender)
   if type(p)~="table" or type(p.type)~="string" then return end
@@ -138,7 +140,7 @@ function M:HandlePayload(p,sender)
   end
 end
 function M:OnEvent(event,prefix,msg,channel,sender)
-  if event=="PLAYER_ENTERING_WORLD" then GH:Roster();return end
+  if event=="PLAYER_ENTERING_WORLD" then self.rosterRequested=false;GH:Roster();return end
   if event=="GUILD_ROSTER_UPDATE" then
     if GH:InGuild() and not self.rosterRequested then
       self.rosterRequested=true
@@ -152,10 +154,10 @@ function M:OnEvent(event,prefix,msg,channel,sender)
   if GH:MemberRank(sender)==nil then GH:Roster();return end
   local id,index,total,data=msg:match("^M:([%d_]+):(%d+):(%d+):(.*)$")
   index=tonumber(index);total=tonumber(total)
-  if not id or not index or not total or total<1 or total>600 or index<1 or index>total or #data>165 then return end
+  if not id or not index or not total or total<1 or total>8192 or index<1 or index>total or #data>165 then return end
   local key=sender..":"..id
   local b=self.buffers[key]
-  if b and (b.total~=total or GH:Now()-b.at>400) then self.buffers[key]=nil;b=nil end
+  if b and (b.total~=total or GH:Now()-b.at>3600) then self.buffers[key]=nil;b=nil end
   if not b then
     local n=0;for _ in pairs(self.buffers) do n=n+1 end
     if n>30 then self.buffers={};return end

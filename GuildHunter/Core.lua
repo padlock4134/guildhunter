@@ -1,7 +1,7 @@
 local GH = CreateFrame("Frame", "GuildHunterEventFrame")
 GuildHunter = GH
 GH.guildName = "irønclad"
-GH.prefix = "GHv100"
+GH.prefix = "GHv110"
 GH.modules = {}
 GH.ready = false
 GH.serial = 0
@@ -23,8 +23,8 @@ function GH:ID(prefix)
   return (prefix or "id") .. ":" .. tostring(self:Now()) .. ":" .. tostring(id) .. ":" .. self:PlayerName()
 end
 function GH:Safe(v)
-  if v == nil then return nil end
   if issecretvalue and issecretvalue(v) then return nil end
+  if v == nil then return nil end
   return v
 end
 function GH:UnitName(unit)
@@ -55,6 +55,17 @@ function GH:InGuild()
 end
 function GH:Roster()
   if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end
+end
+function GH:CanonicalName(name)
+  local seek=self:Normalize(name)
+  if not seek or not self:InGuild() then return nil end
+  for i=1,GetNumGuildMembers() do
+    local member=GetGuildRosterInfo(i)
+    if self:Normalize(self:Safe(member))==seek then return member end
+  end
+end
+function GH:IsLedgerOwner(name)
+  return self:MemberRank(name or self:PlayerName())==0
 end
 function GH:MemberRank(name)
   if not self:InGuild() or not GetGuildRosterInfo or not GetNumGuildMembers then return nil end
@@ -89,7 +100,7 @@ function GH:Initialize()
   if self.ready then return end
   self.Database:Initialize()
   self:Roster()
-  for _, name in ipairs({"KOS","Detection","Tracker","Sync","Lottery","KillTracker","Audio","Settings","UI","LotteryUI"}) do
+  for _, name in ipairs({"KOS","Detection","Tracker","Sync","Lottery","KillTracker","Audio","Settings","UI","LotteryUI","Reliability"}) do
     local module = self.modules[name]
     if module and module.Initialize then
       local ok, err = pcall(module.Initialize, module)

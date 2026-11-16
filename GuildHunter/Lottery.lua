@@ -26,7 +26,9 @@ end
 local function parseNumbers(v)
   if type(v)~="string" then return nil end
   local nums={}
-  for n in v:gmatch("%d+") do nums[#nums+1]=tonumber(n) end
+  local a,b,c=v:match("^%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*$")
+  if not a then return nil end
+  nums={tonumber(a),tonumber(b),tonumber(c)}
   if not validNumbers(nums) then return nil end
   return nums
 end
@@ -78,7 +80,7 @@ function M:RequireOfficer()
   return false
 end
 function M:CanEnter(r)
-  return r and r.status=="open" and GH:Now() < (r.closesAt or math.huge)
+  return r and not r.migrationBlocked and r.status=="open" and GH:Now() < (r.closesAt or math.huge)
 end
 function M:Log(r,event,details)
   local item={at=GH:Now(),by=GH:PlayerName(),action=event,details=tostring(details or "")}
@@ -118,9 +120,10 @@ function M:SetSchedule(hours,closeMinutes)
   if not self:CanEnter(r) then return false end
   hours=tonumber(hours);closeMinutes=tonumber(closeMinutes)
   if not hours or not closeMinutes or hours<1 or hours>720 or closeMinutes<0 or closeMinutes>240 then return false end
-  r.drawAt=GH:Now()+math.floor(hours*3600)
-  r.closesAt=r.drawAt-math.floor(closeMinutes*60)
-  if r.closesAt<=GH:Now() then return false end
+  local drawAt=GH:Now()+math.floor(hours*3600)
+  local closesAt=drawAt-math.floor(closeMinutes*60)
+  if closesAt<=GH:Now() then GH:Print("Cutoff must be in the future");return false end
+  r.drawAt=drawAt;r.closesAt=closesAt
   self:Touch(r,"schedule","draw hours "..hours..", cutoff minutes "..closeMinutes)
   return true
 end
@@ -156,7 +159,7 @@ function M:RequestEntry(numbers)
 end
 function M:IssueTicket(r,player,source,numbers,lateQualified)
   if not GH:IsOfficer() or not r.payments[player] then return nil end
-  if not self:CanEnter(r) and not (lateQualified and r.status=="closed" and GH:Now() < (r.drawAt or 0)) then return nil end
+  if not self:CanEnter(r) and not (lateQualified and r.status=="closed"  ) then return nil end
   numbers=numbers or self:QuickPick()
   local packed=packNumbers(numbers)
   if not packed then return nil end
@@ -171,7 +174,7 @@ function M:ConfirmPayment(player)
   if not self:RequireOfficer() then return false end
   local r=self:GetCurrent()
   if not self:CanEnter(r) then GH:Print("Entries closed") return false end
-  player=GH:Normalize(player) and player or nil
+  player=GH:CanonicalName(player)
   if not player or player=="" or r.payments[player] then GH:Print("Invalid player or already paid") return false end
   if GH:MemberRank(player)==nil then GH:Print("Player not in irønclad roster") return false end
   -- Payment is a manual attestation, not an automated trade.
@@ -188,7 +191,7 @@ function M:SubmitKill(claim)
   if not self:CanEnter(r) or not r.payments[GH:PlayerName()] then return false end
   claim.roundId=r.id
   claim.player=GH:PlayerName()
-  if GH:IsOfficer() then return self:AcceptKill(claim,claim.player) end
+  if GH:IsLedgerOwner() then return self:AcceptKill(claim,claim.player) end
   GH.db.lottery.pendingKills[claim.id]=claim
   GH.Sync:Publish({type="KILL",player=claim.player,claim=claim,roundId=r.id})
   return true
@@ -199,7 +202,7 @@ function M:AcceptKill(claim,sender)
   if not r or (r.status~="open" and r.status~="closed") or type(claim)~="table" or claim.roundId~=r.id then return false end
   if not claim.id or type(claim.victim)~="string" or type(claim.at)~="number" then return false end
   if claim.at<(r.created or 0) or claim.at>=(r.closesAt or 0) or claim.at>GH:Now()+10 then return false end
-  if r.status=="closed" and GH:Now()>=(r.drawAt or 0) then return false end
+  if r.status=="closed" and GH:Now()>=(r.drawAt or 0) and not (r.review and r.review[claim.id]) then return false end
   if GH:Normalize(sender)~=GH:Normalize(claim.player) or not r.payments[claim.player] then return false end
   if r.killClaims[claim.id] then return false end
   local key=claim.player..":"..claim.victim
@@ -222,11 +225,20 @@ function M:AcceptKill(claim,sender)
 end
 function M:CorrectKills(player,total,reason)
   if not self:RequireOfficer() then return false end
+  player=GH:CanonicalName(player)
   local r=self:GetCurrent(); total=tonumber(total)
   if not self:CanEnter(r) or not r.payments[player] or not total or total<0 or total~=math.floor(total) then return false end
   local old=r.kills[player] or 0
   r.kills[player]=total
-  -- Corrections never silently revoke paid or earned tickets. Award newly met milestones.
+  if not reason or not reason:match("%S") then GH:Print("An audit reason is required");r.kills[player]=old;return false end
+  for _,ticket in pairs(r.tickets) do
+    local threshold=tonumber((ticket.source or ""):match("^kill:(%d+)$"))
+    if ticket.owner==player and threshold and threshold>total then
+      ticket.status="void";ticket.voidReason=reason
+      if r.awarded[player] then r.awarded[player][threshold]=nil end
+    end
+  end
+  -- An explicit correction reconciles bonus eligibility; paid tickets are retained.
   r.awarded[player]=r.awarded[player] or {}
   local pending={}
   for _,threshold in ipairs(r.thresholds) do
@@ -254,9 +266,10 @@ function M:ChangeTicket(ticketId,numbers,owner)
   return true
 end
 function M:ReceiveRequest(p,sender)
-  if not GH:IsOfficer() then return end
+  if not GH:IsLedgerOwner() then return end
   local r=self:GetCurrent()
-  if not r or r.id~=p.roundId or not self:CanEnter(r) then return end
+  if not r or r.id~=p.roundId then return end
+  if p.type~="KILL" and not self:CanEnter(r) then return end
   if p.type=="ENTRY" then
     if not r.payments[sender] and validNumbers(p.numbers) then
       r.requests[sender]={player=sender,numbers=copy(p.numbers),at=GH:Now()}
@@ -280,6 +293,7 @@ function M:Draw()
   local r=self:GetCurrent()
   if not r or r.status~="closed" or r.winning then return false end
   if GH:Now()<(r.drawAt or 0) then GH:Print("Draw time not reached") return false end
+  if next(r.review or {}) then GH:Print("Review pending kill claims before drawing");return false end
   r.winning=packNumbers(self:QuickPick())
   r.drawnAt=GH:Now()
   r.status="drawn"
@@ -324,10 +338,10 @@ function M:CompleteRound()
 end
 function M:Tick()
   local r=self:GetCurrent()
-  if r and r.status=="open" and GH:IsOfficer() and GH:Now()>=(r.closesAt or math.huge) then
+  if r and r.status=="open" and GH:IsLedgerOwner() and GH:Now()>=(r.closesAt or math.huge) then
     self:CloseEntries()
   end
-  if GH:InGuild() and not GH:IsOfficer() then
+  if GH:InGuild() and not GH:IsLedgerOwner() then
     for _,claim in pairs(GH.db.lottery.pendingKills) do
       if r and claim.roundId==r.id and (r.status=="open" or (r.status=="closed" and GH:Now()<(r.drawAt or 0))) then
         GH.Sync:Publish({type="KILL",player=claim.player,roundId=claim.roundId,claim=claim})
@@ -336,9 +350,9 @@ function M:Tick()
   end
 end
 function M:BroadcastAll(live)
-  if not GH:IsOfficer() then return end
+  if not GH:IsLedgerOwner() then return end
   for _,round in pairs(GH.db.lottery.rounds) do
-    GH.Sync:Publish({type="ROUND",round=copy(round),live=live and true or false})
+    GH.Sync:Publish({type="ROUND",round=copy(round),snapshot=true,live=false})
   end
 end
 function M:ReceiveRound(p,sender)

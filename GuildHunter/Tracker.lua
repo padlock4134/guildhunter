@@ -32,6 +32,7 @@ function M:Initialize()
   minimize:SetPoint("TOPRIGHT",-7,-8)
   minimize:SetScript("OnClick",function() M:Minimize() end)
   local lock=btn(f,"L",25)
+  self.lockButton=lock
   lock:SetPoint("TOPRIGHT",-36,-8)
   lock:SetScript("OnClick",function()
     c.locked=not c.locked
@@ -61,9 +62,12 @@ function M:Initialize()
   f:SetScript("OnSizeChanged",function(_,w,h)
     if not c.minimized then
       c.width=math.floor(w+0.5);c.height=math.floor(h+0.5)
+      if M.content then M.content:SetWidth(math.max(195,w-55)) end
     end
   end)
   self.frame=f;self.grip=grip
+  local elapsed=0
+  f:SetScript("OnUpdate",function(_,dt) elapsed=elapsed+dt;if elapsed>=5 then elapsed=0;M:RefreshTracker() end end)
   if c.minimized then scroll:Hide();grip:Hide() end
   if not GH.db.settings.trackerVisible then f:Hide() end
   self:RefreshTracker()
@@ -80,6 +84,7 @@ function M:Toggle()
 end
 function M:RefreshTracker()
   if not self.content then return end
+  self.lockButton:SetText(GH.db.tracker.locked and "U" or "L")
   local list={}
   for _,record in pairs(GH.db.seen) do
     if GH:Now()-(record.lastSeen or 0)<1800 then

@@ -33,13 +33,14 @@ local function clock(stamp)
   return date("!%d %b %Y %H:%M",stamp).." UTC"
 end
 local function gold(copper)
-  return string.format("%.2f",(copper or 0)/10000).."g"
+  copper=math.floor(copper or 0)
+  return string.format("%dg %ds %dc",math.floor(copper/10000),math.floor(copper/100)%100,copper%100)
 end
 function M:Initialize()
   local cfg=GH.db.windows
   local f=CreateFrame("Frame","GuildHunterLotteryWindow",UIParent,"BackdropTemplate")
   f:SetSize(745,620)
-  f:SetPoint("CENTER",UIParent,"CENTER",cfg.lotteryX or 0,cfg.lotteryY or 0)
+  f:SetPoint(cfg.lotteryPoint or "CENTER",UIParent,cfg.lotteryRelative or "CENTER",cfg.lotteryX or 0,cfg.lotteryY or 0)
   f:SetFrameStrata("DIALOG")
   f:SetBackdrop({bgFile="Interface\\DialogFrame\\UI-DialogBox-Background",
     edgeFile="Interface\\DialogFrame\\UI-DialogBox-Border",tile=true,tileSize=32,edgeSize=32,
@@ -48,7 +49,7 @@ function M:Initialize()
   f:SetScript("OnDragStart",function(self) self:StartMoving() end)
   f:SetScript("OnDragStop",function(self)
     self:StopMovingOrSizing()
-    local _,_,_,x,y=self:GetPoint();cfg.lotteryX=x;cfg.lotteryY=y
+    local point,_,relative,x,y=self:GetPoint();cfg.lotteryPoint=point;cfg.lotteryRelative=relative;cfg.lotteryX=x;cfg.lotteryY=y
   end)
   label(f,24,-22,"GuildHunter — irønclad Weekly Lottery")
   btn(f,"X",692,-16,29,function() f:Hide() end)
@@ -58,6 +59,8 @@ function M:Initialize()
   local area=CreateFrame("Frame",nil,f)
   area:SetPoint("TOPLEFT",26,-101);area:SetPoint("BOTTOMRIGHT",-24,20)
   self.frame=f;self.area=area
+  local elapsed=0
+  f:SetScript("OnUpdate",function(_,dt) elapsed=elapsed+dt;if elapsed>=1 then elapsed=0;if M.page=="member" then M:RefreshMember() elseif M.page=="officer" then M:RefreshOfficer() end end end)
   self:BuildMember()
   self:BuildOfficer()
   self:BuildHistory()

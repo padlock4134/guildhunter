@@ -31,7 +31,7 @@ function M:Initialize()
   local cfg=GH.db.windows
   local f=CreateFrame("Frame","GuildHunterWindow",UIParent,"BackdropTemplate")
   f:SetSize(730,550)
-  f:SetPoint("CENTER",UIParent,"CENTER",cfg.mainX or 0,cfg.mainY or 0)
+  f:SetPoint(cfg.mainPoint or "CENTER",UIParent,cfg.mainRelative or "CENTER",cfg.mainX or 0,cfg.mainY or 0)
   f:SetFrameStrata("DIALOG")
   f:SetBackdrop({bgFile="Interface\\DialogFrame\\UI-DialogBox-Background",
     edgeFile="Interface\\DialogFrame\\UI-DialogBox-Border",tile=true,tileSize=32,edgeSize=32,
@@ -40,7 +40,7 @@ function M:Initialize()
   f:SetScript("OnDragStart",function(self) self:StartMoving() end)
   f:SetScript("OnDragStop",function(self)
     self:StopMovingOrSizing()
-    local _,_,_,x,y=self:GetPoint()
+    local point,_,relative,x,y=self:GetPoint();cfg.mainPoint=point;cfg.mainRelative=relative
     cfg.mainX=x;cfg.mainY=y
   end)
   local title=label(f,23,-22,"GuildHunter | irønclad")
@@ -190,7 +190,7 @@ function M:RefreshRows()
       M.selected=r.id
       M.name:SetText(r.name or "")
       M.reason:SetText(r.reason or "")
-      local extra=isGuild and ("Known members: "..tostring(function() local n=0;for _ in pairs(r.members or {}) do n=n+1 end;return n end)())
+      local extra=isGuild and ("Known members: "..tostring((function() local n=0;for _ in pairs(r.members or {}) do n=n+1 end;return n end)()))
        or ("Guild: "..(r.guild or "Unknown").." | Class: "..(r.class or "?")..
          " | Level: "..tostring(r.level or "?").." | Added by: "..(r.addedBy or "?"))
       M.details:SetText(extra)
