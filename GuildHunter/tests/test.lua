@@ -1,5 +1,5 @@
 -- GuildHunter headless smoke/invariant tests. Run: luatex --luaonly tests/test.lua
-local root = arg[0]:gsub("tests/test.lua$", "")
+local root = arg[0]:gsub("tests/[^/]+%.lua$", "")
 local total=0
 local function check(test,condition)
   total=total+1
@@ -57,7 +57,7 @@ GetGuildRosterInfo=function(i)
 end
 C_GuildInfo={GuildRoster=noop}
 C_ChatInfo={RegisterAddonMessagePrefix=function() return true end,SendAddonMessage=function() return true end}
-local filenames={"Core","Database","KOS","Detection","Tracker","Sync","Lottery","KillTracker","Audio","Settings","UI","LotteryUI"}
+local filenames={"Core","Database","KOS","Detection","Tracker","Sync","Lottery","KillTracker","Audio","Settings","UI","LotteryUI","Reliability"}
 for _,name in ipairs(filenames) do dofile(root..name..".lua") end
 local GH=GuildHunter
 GH:Initialize()
@@ -187,22 +187,25 @@ check("new round inherits rollover",rollover.jackpot==50000)
 -- Verify sync chunk assembly and denial of non-officer ledger writes.
 local remote=GH.Sync.Decode(GH.Sync.Encode(rollover))
 remote.revision=rollover.revision+10000
+remote.rolloverIn=765432
 remote.jackpot=765432
 local oldRev=rollover.revision
 GH.Sync:HandlePayload({type="ROUND",round=remote},"Regular Member")
 check("member cannot inject officer ledger",GH.Lottery:GetCurrent().revision==oldRev)
+player="First Mate"
 local start=#GH.db.outbox
 GH.Sync:Publish({type="ROUND",round=remote,live=false})
 local packets={}
 for i=start+1,#GH.db.outbox do packets[#packets+1]=GH.db.outbox[i] end
 check("chunked message generated",#packets>=2)
 for i=#packets,1,-1 do
- GH.Sync:OnEvent("CHAT_MSG_ADDON",GH.prefix,packets[i],"GUILD","First Mate")
+ GH.Sync:OnEvent("CHAT_MSG_ADDON",GH.prefix,packets[i],"GUILD","Shock Ironwang")
 end
 check("out of order sync reassembled",GH.Lottery:GetCurrent().jackpot==765432)
 local newRound=GH.Lottery:GetCurrent()
 local newer=GH.Sync.Decode(GH.Sync.Encode(newRound))
 newer.revision=newRound.revision+1
+newer.rolloverIn=888888
 newer.jackpot=888888
 local noAuthStart=#GH.db.outbox
 GH.Sync:Publish({type="ROUND",round=newer})
@@ -216,4 +219,5 @@ GH.LotteryUI:RefreshUI()
 GH.Database:Initialize()
 check("reload/no duplicated audio",soundBefore==soundCount)
 GH.Lottery.QuickPick=oldPick
+player="Shock Ironwang"
 print("PASS "..total.." GuildHunter headless assertions")

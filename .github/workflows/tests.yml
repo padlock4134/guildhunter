@@ -1,0 +1,20 @@
+name: Lua regression tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.1
+      - name: Parse every Lua file
+        run: find GuildHunter -name '*.lua' -exec luac5.1 -p {} +
+      - name: Run regression suites
+        working-directory: GuildHunter
+        run: |
+          lua5.1 tests/test.lua
+          lua5.1 tests/regression.lua

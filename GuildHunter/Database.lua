@@ -1,7 +1,7 @@
 local GH = GuildHunter
 local M = {}
 GH:RegisterModule("Database", M)
-local currentVersion = 2
+local currentVersion = 3
 local function merge(out, template)
   for k, value in pairs(template) do
     if out[k] == nil then
@@ -17,6 +17,7 @@ end
 function M:Initialize()
   if type(GuildHunterDB) ~= "table" then GuildHunterDB = {} end
   local db = GuildHunterDB
+  local previousVersion=db.version or 0
   merge(db, {
     version = currentVersion,
     kos = {}, guilds = {}, tombstones = {}, seen = {},
@@ -26,7 +27,7 @@ function M:Initialize()
                point = "CENTER", locked = false, minimized = false},
     windows = {mainX=0,mainY=0,lotteryX=0,lotteryY=0},
     lottery = {rounds = {}, currentId = nil, audit = {}, entryRequests = {},
-               pendingKills = {}, unresolvedKills = {}, paidReceiptCount = 0},
+               pendingKills = {}, unresolvedKills = {}},
     audioPlayed = {}, outbox = {}, officerRankMax = 1,
     counter = 0, idCounter = 0
   })
@@ -36,6 +37,17 @@ function M:Initialize()
     db.version = currentVersion
   end
   GH.db = db
+  db.requests=db.requests or {}
+  db.processed=db.processed or {}
+  if previousVersion<3 then
+    db.outbox={}
+    for _,r in pairs(db.lottery.rounds) do
+      r.drawAt=r.drawAt or r.drawTime
+      if not r.drawAt then r.migrationBlocked=true end
+      r.closesAt=r.closesAt or (r.drawAt and r.drawAt-300)
+      r.status=r.status or r.state
+    end
+  end
   for id,record in pairs(db.tombstones) do
     if type(record)=="number" then
       db.tombstones[id]={id=id,kind="D",revision=record,updatedBy="legacy"}
@@ -45,9 +57,8 @@ function M:Initialize()
   db.lottery.audit = db.lottery.audit or {}
 end
 function M:Revision()
-  GH.db.counter = (GH.db.counter or 0) + 1
-  -- Monotonically increasing on one client; deterministic ties across clients.
-  return GH:Now() * 100000 + (GH.db.counter % 100000)
+  GH.db.counter=math.max((GH.db.counter or 0)+1,GH:Now()*100000)
+  return GH.db.counter
 end
 function M:Audit(action, detail, who)
   local log = GH.db.lottery.audit

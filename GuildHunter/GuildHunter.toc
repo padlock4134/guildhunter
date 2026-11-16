@@ -2,7 +2,7 @@
 ## Title: GuildHunter
 ## Notes: irønclad guild PvP intelligence and weekly lottery
 ## Author: irønclad
-## Version: 1.0.0
+## Version: 1.1.0
 ## SavedVariables: GuildHunterDB
 
 Core.lua
@@ -17,3 +17,4 @@ Audio.lua
 Settings.lua
 UI.lua
 LotteryUI.lua
+Reliability.lua
