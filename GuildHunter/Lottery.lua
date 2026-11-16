@@ -69,7 +69,7 @@ function M:CreateTicket(owner,source,numbers)
   source=source,status="active",created=GH:Now()}
  round.tickets[id]=ticket
  self:Audit("ticket_issued",id)
- self:BroadcastTicket(ticket)
+ self:BroadcastTicket(ticket,true)
  GH:OnTicketCreated(ticket)
  GH:Emit("RefreshUI")
  return ticket
@@ -180,8 +180,8 @@ function M:CompleteRound()
  self:BroadcastLedger()
  GH:Emit("RefreshUI")
 end
-function M:BroadcastTicket(ticket)
- GH.Sync:Publish("L",{roundId=ticket.roundId,op="ticket",id=ticket.id,
+function M:BroadcastTicket(ticket,isNew)
+ GH.Sync:Publish("L",{roundId=ticket.roundId,op=isNew and "ticketNew" or "ticket",id=ticket.id,
   owner=ticket.owner,numbers=ticket.numbers,source=ticket.source,
   timestamp=ticket.created,revision=GH:Now()*1000+GH.Database:NextRevision(),status=ticket.status})
 end
@@ -224,9 +224,13 @@ function M:ReceiveLedger(record,sender)
   GH.db.lottery.currentId=r.id
  elseif record.op=="payment" then
   r.payments[record.owner]={amount=record.amount or 50000}
- elseif record.op=="ticket" then
+ elseif record.op=="ticket" or record.op=="ticketNew" then
+  local fresh=not r.tickets[record.id]
   r.tickets[record.id]={id=record.id,roundId=r.id,owner=record.owner,numbers=record.numbers,
    source=record.source,status=record.status or "active"}
+  if fresh and record.op=="ticketNew" and record.owner==GH:SelfName() then
+   GH:OnTicketCreated(r.tickets[record.id])
+  end
  elseif record.op=="kills" then r.kills[record.owner]=record.value or 0 end
  self:RefreshCurrent()
  GH:Emit("RefreshUI")
