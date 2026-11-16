@@ -1,0 +1,19 @@
+## Interface: 16001
+## Title: GuildHunter
+## Notes: irønclad KoS intelligence and guild lottery
+## Author: irønclad
+## Version: 0.1.0
+## SavedVariables: GuildHunterDB
+
+Core.lua
+Database.lua
+KOS.lua
+Detection.lua
+Tracker.lua
+Sync.lua
+Lottery.lua
+KillTracker.lua
+Audio.lua
+Settings.lua
+UI.lua
+LotteryUI.lua
